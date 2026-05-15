@@ -29,6 +29,22 @@ Fill `DATABASE_URL` with the Postgres connection string from your Supabase proje
 
 For local Docker Postgres, leave `DATABASE_URL` empty and use the `POSTGRES_*` variables instead.
 
+## Fly.io
+
+This directory includes `Dockerfile` and `fly.toml`.
+
+If the app name in `fly.toml` is unavailable, change `app = "subsacip-api"` before creating the Fly app.
+
+```bash
+fly auth login
+fly apps create subsacip-api
+fly secrets set DATABASE_URL="<your-supabase-postgres-url>"
+fly secrets set CORS_ORIGIN="https://<your-cloudflare-pages-domain>"
+fly deploy
+```
+
+The service listens on `0.0.0.0:3001`, matching `internal_port = 3001` in `fly.toml`.
+
 ## Endpoints
 
 - `GET /api` health check

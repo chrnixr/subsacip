@@ -38,6 +38,52 @@ The API listens on `http://localhost:3001/api` by default.
 
 Do not commit real `.env` files or Supabase credentials.
 
+## Deploy
+
+### Backend: Fly.io
+
+The backend deploy config lives in `backend/fly.toml`, and the Docker image is built from `backend/Dockerfile`.
+
+If `subsacip-api` is unavailable on Fly.io, change the `app` value in `backend/fly.toml` first.
+
+```bash
+cd backend
+fly auth login
+fly apps create subsacip-api
+fly secrets set DATABASE_URL="<your-supabase-postgres-url>"
+fly secrets set CORS_ORIGIN="https://<your-cloudflare-pages-domain>"
+fly deploy
+```
+
+The backend URL will be:
+
+```txt
+https://subsacip-api.fly.dev/api
+```
+
+For the first deployment, `TYPEORM_SYNC=true` and `SEED_DATABASE=true` are enabled in `fly.toml` so the app can create and seed tables. After schema is stable, set `TYPEORM_SYNC=false` and use migrations.
+
+### Frontend: Cloudflare Pages
+
+Create a Cloudflare Pages project from the GitHub repository.
+
+Use these build settings:
+
+```txt
+Framework preset: Vite
+Build command: npm run build
+Build output directory: dist
+Root directory: /
+```
+
+Set this Pages environment variable:
+
+```txt
+VITE_API_BASE_URL=https://<your-fly-app>.fly.dev/api
+```
+
+The `public/_redirects` file is included so Cloudflare Pages serves the Vite app for client-side routes.
+
 ## GitHub
 
 This project is ready to push as a single repo. After creating a GitHub repo:
