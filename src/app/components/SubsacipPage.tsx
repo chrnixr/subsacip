@@ -875,8 +875,249 @@ function AttentionBanner({ items }: { items: Subscription[] }) {
   );
 }
 
+// ── Edit Subscription Sheet ───────────────────────────────────────────────────
+function EditSubscriptionSheet({ sub, onClose, onSave, paymentMethods, onAddPayment }: {
+  sub: Subscription;
+  onClose: () => void;
+  onSave: (updated: Subscription) => void;
+  paymentMethods: PaymentMethod[];
+  onAddPayment: () => void;
+}) {
+  const preset = PRESET_SERVICES.find(p => p.name === sub.name);
+  const [form, setForm] = useState<AddForm>({
+    name: sub.name,
+    description: sub.description,
+    price: sub.price.toString(),
+    cycle: sub.cycle,
+    nextBillingDate: sub.nextBillingDate,
+    paymentId: sub.paymentMethodId ?? paymentMethods[0]?.id ?? "",
+    category: sub.category,
+    color: sub.color,
+    icon: preset?.icon ?? "wifi",
+    isCustom: !preset,
+  });
+  const [errors, setErrors] = useState<Partial<Record<keyof AddForm, string>>>({});
+
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+
+  function validate() {
+    const e: typeof errors = {};
+    if (!form.name.trim()) e.name = "กรุณากรอกชื่อบริการ";
+    if (!form.price || isNaN(Number(form.price)) || Number(form.price) <= 0) e.price = "กรุณากรอกราคาที่ถูกต้อง";
+    if (!form.nextBillingDate) e.nextBillingDate = "กรุณาเลือกวันที่";
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  }
+
+  function handleSave() {
+    if (!validate()) return;
+    const pm = paymentMethods.find(p => p.id === form.paymentId);
+    onSave({
+      ...sub,
+      name: form.name.trim(),
+      description: form.description.trim() || form.name.trim(),
+      price: Number(form.price),
+      cycle: form.cycle,
+      nextBillingDate: form.nextBillingDate,
+      payment: pm ? { type: pm.type, last4: pm.last4 ?? pm.phone?.slice(-4) ?? "0000" } : sub.payment,
+      paymentMethodId: pm?.id ?? sub.paymentMethodId,
+      category: form.category,
+      color: form.color,
+    });
+    onClose();
+  }
+
+  const set = (k: keyof AddForm) => (v: string) => setForm(f => ({ ...f, [k]: v }));
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40" style={{ backgroundColor: "rgba(44,31,20,0.45)", backdropFilter: "blur(4px)" }} onClick={onClose} />
+      <div className="fixed left-0 right-0 bottom-0 z-50 flex flex-col"
+        style={{ maxHeight: "92dvh", borderRadius: "24px 24px 0 0", backgroundColor: E.card, boxShadow: "0 -4px 32px rgba(60,35,15,0.18)" }}>
+
+        <div className="flex justify-center pt-3 pb-1 shrink-0">
+          <div className="w-10 h-1 rounded-full" style={{ backgroundColor: E.inkLight }} />
+        </div>
+
+        <div className="flex items-center px-5 py-3 shrink-0" style={{ borderBottom: `1px solid ${E.divider}` }}>
+          <div className="w-9" />
+          <p className="flex-1 text-center" style={{ fontSize: "1rem", fontWeight: 600, color: E.inkDark }}>แก้ไข Subscription</p>
+          <button onClick={onClose} className="w-9 h-9 flex items-center justify-center rounded-full" style={{ backgroundColor: E.urgNorm.bg }}>
+            <X size={18} style={{ color: E.inkMid }} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          <div className="px-5 py-5 space-y-5 pb-8">
+            <div className="flex items-center gap-3 p-4 rounded-2xl" style={{ backgroundColor: E.cardSurface, border: `1px solid ${E.divider}` }}>
+              <div className="rounded-2xl flex items-center justify-center text-white shrink-0"
+                style={{ width: 44, height: 44, backgroundColor: form.color }}>
+                <ServiceIcon icon={form.icon} size={44} />
+              </div>
+              <div>
+                <p style={{ fontSize: "1rem", fontWeight: 600, color: E.inkDark }}>{form.name || "ชื่อบริการ"}</p>
+                <p style={{ fontSize: "0.8125rem", color: E.inkLight }}>
+                  {form.price ? `฿${Number(form.price).toLocaleString()}` : "—"} · {form.cycle === "monthly" ? "รายเดือน" : "รายปี"}
+                </p>
+              </div>
+            </div>
+
+            <Field label="ชื่อบริการ">
+              <TextInput value={form.name} onChange={set("name")} placeholder="เช่น Netflix, Spotify" />
+              {errors.name && <p style={{ fontSize: "0.75rem", color: E.urgToday.text }}>{errors.name}</p>}
+            </Field>
+
+            {form.isCustom && (
+              <>
+                <Field label="สี">
+                  <div className="flex gap-2 flex-wrap">
+                    {CUSTOM_COLORS.map(c => (
+                      <button key={c} onClick={() => set("color")(c)}
+                        className="w-10 h-10 rounded-xl transition-all active:scale-95 relative"
+                        style={{ backgroundColor: c, border: form.color === c ? `3px solid ${E.accent}` : `1px solid ${E.divider}` }}>
+                        {form.color === c && (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <Check size={16} style={{ color: "#fff" }} />
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+                <Field label="ไอคอน">
+                  <div className="flex gap-2 flex-wrap">
+                    {CUSTOM_ICONS.map(({ id, icon }) => (
+                      <button key={id} onClick={() => set("icon")(icon)}
+                        className="w-12 h-12 rounded-xl transition-all active:scale-95 flex items-center justify-center"
+                        style={{
+                          backgroundColor: form.icon === icon ? E.accent : E.cardSurface,
+                          border: `1px solid ${form.icon === icon ? E.accent : E.divider}`,
+                          color: form.icon === icon ? E.pillActiveTxt : E.inkMid,
+                        }}>
+                        <ServiceIcon icon={icon} size={48} />
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+              </>
+            )}
+
+            <Field label="แพ็กเกจ / รายละเอียด">
+              <TextInput value={form.description} onChange={set("description")} placeholder="เช่น Standard, Premium" />
+            </Field>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="ราคา (฿)">
+                <TextInput value={form.price} onChange={set("price")} placeholder="0" type="number" />
+                {errors.price && <p style={{ fontSize: "0.75rem", color: E.urgToday.text }}>{errors.price}</p>}
+              </Field>
+              <Field label="รอบบิล">
+                <div className="flex rounded-xl overflow-hidden" style={{ border: `1.5px solid ${E.inputBorder}` }}>
+                  {(["monthly", "yearly"] as BillingCycle[]).map((c, i) => (
+                    <button key={c} onClick={() => set("cycle")(c)}
+                      className="flex-1 py-3 transition-all"
+                      style={{
+                        fontSize: "0.8125rem", fontWeight: form.cycle === c ? 600 : 400,
+                        backgroundColor: form.cycle === c ? E.primary : E.input,
+                        color: form.cycle === c ? E.pillActiveTxt : E.inkMid,
+                        borderRight: i === 0 ? `1px solid ${E.inputBorder}` : "none",
+                      }}>
+                      {c === "monthly" ? "เดือน" : "ปี"}
+                    </button>
+                  ))}
+                </div>
+              </Field>
+            </div>
+
+            <Field label="วันตัดบัตรครั้งถัดไป">
+              <div className="relative">
+                <input type="date" value={form.nextBillingDate}
+                  onChange={e => set("nextBillingDate")(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl outline-none"
+                  style={{ fontSize: "0.9375rem", color: E.inkDark, backgroundColor: E.input, border: `1.5px solid ${E.inputBorder}`, colorScheme: "light" }}
+                />
+                <Calendar size={16} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: E.inkLight }} />
+              </div>
+              {errors.nextBillingDate && <p style={{ fontSize: "0.75rem", color: E.urgToday.text }}>{errors.nextBillingDate}</p>}
+            </Field>
+
+            <Field label="ช่องทางชำระเงิน">
+              <div className="space-y-2">
+                {paymentMethods.map((pm) => {
+                  const Icon = pm.type === "visa" || pm.type === "mastercard" || pm.type === "amex" ? CreditCard
+                    : pm.type === "bank" ? Building2
+                    : pm.type === "promptpay" ? Smartphone
+                    : Wallet;
+                  return (
+                    <button key={pm.id} onClick={() => set("paymentId")(pm.id)}
+                      className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all"
+                      style={{
+                        backgroundColor: form.paymentId === pm.id ? E.cardSurface : E.input,
+                        border: `1.5px solid ${form.paymentId === pm.id ? E.accent : E.inputBorder}`,
+                      }}>
+                      <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+                        style={{ backgroundColor: form.paymentId === pm.id ? E.accent : E.inkLight }}>
+                        <Icon size={14} style={{ color: "#fff" }} />
+                      </div>
+                      <span style={{ flex: 1, fontSize: "0.9375rem", color: E.inkDark, textAlign: "left" }}>{pm.label}</span>
+                      {form.paymentId === pm.id && <Check size={16} style={{ color: E.accent }} />}
+                    </button>
+                  );
+                })}
+                <button onClick={onAddPayment}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all active:scale-[0.98]"
+                  style={{ backgroundColor: E.urgNorm.bg, border: `1.5px dashed ${E.inputBorder}` }}>
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: E.accent }}>
+                    <Plus size={16} style={{ color: E.pillActiveTxt }} />
+                  </div>
+                  <span style={{ flex: 1, fontSize: "0.9375rem", fontWeight: 500, color: E.inkMid, textAlign: "left" }}>เพิ่มบัตร/บัญชี</span>
+                </button>
+              </div>
+            </Field>
+
+            <Field label="หมวดหมู่">
+              <div className="flex gap-2 flex-wrap">
+                {(["entertainment", "productivity", "developer", "cloud"] as Category[]).map(cat => {
+                  const labels: Record<Category, string> = { entertainment: "ความบันเทิง", productivity: "งาน", developer: "Developer", cloud: "Cloud" };
+                  return (
+                    <button key={cat} onClick={() => set("category")(cat)}
+                      className="px-3 py-2 rounded-xl transition-all"
+                      style={{
+                        fontSize: "0.8125rem", fontWeight: form.category === cat ? 600 : 400,
+                        backgroundColor: form.category === cat ? E.primary : E.input,
+                        color: form.category === cat ? E.pillActiveTxt : E.inkMid,
+                        border: `1px solid ${form.category === cat ? "transparent" : E.inputBorder}`,
+                      }}>
+                      {labels[cat]}
+                    </button>
+                  );
+                })}
+              </div>
+            </Field>
+          </div>
+        </div>
+
+        <div className="px-5 py-4 shrink-0" style={{ borderTop: `1px solid ${E.divider}`, backgroundColor: E.card, paddingBottom: "max(16px, env(safe-area-inset-bottom))" }}>
+          <button onClick={handleSave}
+            className="w-full py-4 rounded-2xl transition-all active:scale-[0.98]"
+            style={{ fontSize: "1rem", fontWeight: 600, backgroundColor: E.primary, color: E.pillActiveTxt, boxShadow: E.shadowDark }}>
+            บันทึกการแก้ไข
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ── Subscription Card ─────────────────────────────────────────────────────────
-function SubCard({ sub, expanded, onToggle }: { sub: Subscription; expanded: boolean; onToggle: () => void }) {
+function SubCard({ sub, expanded, onToggle, onEdit, onDelete }: {
+  sub: Subscription; expanded: boolean; onToggle: () => void;
+  onEdit?: () => void; onDelete?: () => void;
+}) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const days = daysUntil(sub.nextBillingDate);
   const u = urgency(days);
   const urg = u === "today" ? { bg: E.urgToday.bg, color: E.urgToday.text }
@@ -925,12 +1166,24 @@ function SubCard({ sub, expanded, onToggle }: { sub: Subscription; expanded: boo
               </div>
             ))}
           </div>
-          <div className="flex gap-2 p-4">
-            <button className="flex-1 py-2.5 rounded-xl"
-              style={{ fontSize: "0.875rem", fontWeight: 500, backgroundColor: E.urgNorm.bg, color: E.inkMid }}>แก้ไข</button>
-            <button className="flex-1 py-2.5 rounded-xl"
-              style={{ fontSize: "0.875rem", fontWeight: 500, backgroundColor: E.urgToday.bg, color: E.urgToday.text }}>ยกเลิก</button>
-          </div>
+          {!confirmDelete ? (
+            <div className="flex gap-2 p-4">
+              <button onClick={onEdit} className="flex-1 py-2.5 rounded-xl"
+                style={{ fontSize: "0.875rem", fontWeight: 500, backgroundColor: E.urgNorm.bg, color: E.inkMid }}>แก้ไข</button>
+              <button onClick={() => setConfirmDelete(true)} className="flex-1 py-2.5 rounded-xl"
+                style={{ fontSize: "0.875rem", fontWeight: 500, backgroundColor: E.urgToday.bg, color: E.urgToday.text }}>ลบ</button>
+            </div>
+          ) : (
+            <div className="px-4 pb-4 pt-3 space-y-2">
+              <p style={{ fontSize: "0.8125rem", color: E.inkMid, textAlign: "center" }}>ยืนยันการลบ "{sub.name}"?</p>
+              <div className="flex gap-2">
+                <button onClick={() => setConfirmDelete(false)} className="flex-1 py-2.5 rounded-xl"
+                  style={{ fontSize: "0.875rem", fontWeight: 500, backgroundColor: E.urgNorm.bg, color: E.inkMid }}>ยกเลิก</button>
+                <button onClick={() => { onDelete?.(); setConfirmDelete(false); }} className="flex-1 py-2.5 rounded-xl"
+                  style={{ fontSize: "0.875rem", fontWeight: 600, backgroundColor: E.urgToday.text, color: "#fff" }}>ยืนยันลบ</button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -997,7 +1250,11 @@ function MonthGroup({ monthKey, entries, defaultOpen }: { monthKey: string; entr
 }
 
 // ── Subscriptions View ────────────────────────────────────────────────────────
-function SubscriptionsView({ subscriptions }: { subscriptions: Subscription[] }) {
+function SubscriptionsView({ subscriptions, onEdit, onDelete }: {
+  subscriptions: Subscription[];
+  onEdit?: (sub: Subscription) => void;
+  onDelete?: (id: string) => void;
+}) {
   const [filter, setFilter] = useState<FilterTab>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -1042,7 +1299,9 @@ function SubscriptionsView({ subscriptions }: { subscriptions: Subscription[] })
         {filtered.map(sub => (
           <SubCard key={sub.id} sub={sub}
             expanded={expandedId === sub.id}
-            onToggle={() => setExpandedId(expandedId === sub.id ? null : sub.id)} />
+            onToggle={() => setExpandedId(expandedId === sub.id ? null : sub.id)}
+            onEdit={() => onEdit?.(sub)}
+            onDelete={() => onDelete?.(sub.id)} />
         ))}
         {filtered.length === 0 && (
           <div className="py-12 text-center rounded-2xl" style={{ backgroundColor: E.card, boxShadow: E.shadow }}>
@@ -1111,6 +1370,7 @@ export function SubsacipPage() {
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>(mockHistory);
   const [showAdd, setShowAdd] = useState(false);
   const [showAddPayment, setShowAddPayment] = useState(false);
+  const [editingSubscription, setEditingSubscription] = useState<Subscription | null>(null);
 
   const active = subscriptions.filter(s => s.active);
   const urgent = active.filter(s => daysUntil(s.nextBillingDate) <= 7);
@@ -1162,6 +1422,22 @@ export function SubsacipPage() {
       .catch(error => console.warn("Payment method was saved locally only.", error));
   }
 
+  function handleUpdate(updated: Subscription) {
+    setSubscriptions(prev => prev.map(s => s.id === updated.id ? updated : s));
+    apiRequest<Subscription>(`/subscriptions/${updated.id}`, {
+      method: "PATCH",
+      body: JSON.stringify(toSubscriptionPayload(updated)),
+    })
+      .then(saved => setSubscriptions(prev => prev.map(s => s.id === saved.id ? saved : s)))
+      .catch(error => console.warn("Subscription was updated locally only.", error));
+  }
+
+  function handleDelete(id: string) {
+    setSubscriptions(prev => prev.filter(s => s.id !== id));
+    apiRequest<void>(`/subscriptions/${id}`, { method: "DELETE" })
+      .catch(error => console.warn("Delete failed.", error));
+  }
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: E.bg }}>
       <div style={{ height: "env(safe-area-inset-top, 0px)" }} />
@@ -1195,7 +1471,7 @@ export function SubsacipPage() {
       {/* Content */}
       <div className="max-w-lg mx-auto px-5 pb-28">
         {tab === "subscriptions"
-          ? <SubscriptionsView subscriptions={subscriptions} />
+          ? <SubscriptionsView subscriptions={subscriptions} onEdit={setEditingSubscription} onDelete={handleDelete} />
           : <HistoryView entries={historyEntries} />}
       </div>
 
@@ -1249,6 +1525,20 @@ export function SubsacipPage() {
             handleAddPayment(pm);
             setShowAddPayment(false);
             setShowAdd(true);
+          }}
+        />
+      )}
+
+      {/* Edit Subscription Sheet */}
+      {editingSubscription && (
+        <EditSubscriptionSheet
+          sub={editingSubscription}
+          onClose={() => setEditingSubscription(null)}
+          onSave={(updated) => { handleUpdate(updated); setEditingSubscription(null); }}
+          paymentMethods={paymentMethods}
+          onAddPayment={() => {
+            setEditingSubscription(null);
+            setShowAddPayment(true);
           }}
         />
       )}
