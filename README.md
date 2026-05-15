@@ -3,8 +3,6 @@
 
 Subscription management web app with a Vite/React frontend and a NestJS/Postgres backend.
 
-The original frontend code bundle is available at https://www.figma.com/design/BBoel01pZC2Vdpw1bOB6nP/Subscription-Management-Page.
-
 ## Frontend
 
 ```bash
