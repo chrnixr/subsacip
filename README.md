@@ -36,51 +36,30 @@ The API listens on `http://localhost:3001/api` by default.
 
 Do not commit real `.env` files or Supabase credentials.
 
-## Deploy
+## Deploy: Render
 
-### Backend: Fly.io
+This repo includes `render.yaml` for a Render Blueprint with two services:
 
-The backend deploy config lives in `backend/fly.toml`, and the Docker image is built from `backend/Dockerfile`.
+- `subsacip-web`: Vite static site
+- `subsacip-api`: NestJS web service
 
-If `subsacip-api` is unavailable on Fly.io, change the `app` value in `backend/fly.toml` first.
+In Render, create a new Blueprint from this GitHub repo. During setup, Render prompts for `DATABASE_URL` for `subsacip-api`; paste the Supabase Postgres URL there.
 
-```bash
-cd backend
-fly auth login
-fly apps create subsacip-api
-fly secrets set DATABASE_URL="<your-supabase-postgres-url>"
-fly secrets set CORS_ORIGIN="https://<your-cloudflare-pages-domain>"
-fly deploy
-```
-
-The backend URL will be:
+Expected Render URLs:
 
 ```txt
-https://subsacip-api.fly.dev/api
+Frontend: https://subsacip-web.onrender.com
+Backend:  https://subsacip-api.onrender.com/api
 ```
 
-For the first deployment, `TYPEORM_SYNC=true` and `SEED_DATABASE=true` are enabled in `fly.toml` so the app can create and seed tables. After schema is stable, set `TYPEORM_SYNC=false` and use migrations.
-
-### Frontend: Cloudflare Pages
-
-Create a Cloudflare Pages project from the GitHub repository.
-
-Use these build settings:
+If Render creates different service URLs, update these environment variables in the Render dashboard and redeploy:
 
 ```txt
-Framework preset: Vite
-Build command: npm run build
-Build output directory: dist
-Root directory: /
+subsacip-web  -> VITE_API_BASE_URL=https://<actual-api-service>.onrender.com/api
+subsacip-api  -> CORS_ORIGIN=https://<actual-web-service>.onrender.com
 ```
 
-Set this Pages environment variable:
-
-```txt
-VITE_API_BASE_URL=https://<your-fly-app>.fly.dev/api
-```
-
-The `public/_redirects` file is included so Cloudflare Pages serves the Vite app for client-side routes.
+For the first deployment, `TYPEORM_SYNC=true` and `SEED_DATABASE=true` are enabled so the app can create and seed Supabase tables. After schema is stable, set `TYPEORM_SYNC=false` and use migrations.
 
 ## GitHub
 
